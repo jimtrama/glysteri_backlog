@@ -1,10 +1,19 @@
 const express = require('express');
+const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
 const PORT = 8084;
 const app = express();
 const DB_PATH = path.join(__dirname, 'db.json');
+const APP_PASSWORD = process.env.APP_PASSWORD;
+const SESSION_COOKIE = 'glysteri_session';
+const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
+const ALLOWED_ORIGINS = new Set([
+  'http://localhost:4200',
+  'http://127.0.0.1:4200'
+]);
+const sessions = new Map();
 
 async function readDb() {
   const data = await fs.readFile(DB_PATH, 'utf8');
@@ -21,6 +30,79 @@ function getNextId(items) {
 
 function roundAmount(value) {
   return Math.round((Number(value) + Number.EPSILON) * 10000) / 10000;
+}
+
+function parseCookies(cookieHeader = '') {
+  return cookieHeader.split(';').reduce((cookies, cookie) => {
+    const [name, ...valueParts] = cookie.trim().split('=');
+
+    if (name) {
+      cookies[name] = decodeURIComponent(valueParts.join('='));
+    }
+
+    return cookies;
+  }, {});
+}
+
+function safeCompare(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return leftBuffer.length === rightBuffer.length &&
+    crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function createSession() {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  return token;
+}
+
+function getSessionToken(req) {
+  return parseCookies(req.headers.cookie)[SESSION_COOKIE];
+}
+
+function isValidSession(req) {
+  const token = getSessionToken(req);
+  const expiresAt = token ? sessions.get(token) : undefined;
+
+  if (!token || !expiresAt) {
+    return false;
+  }
+
+  if (expiresAt < Date.now()) {
+    sessions.delete(token);
+    return false;
+  }
+
+  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  return true;
+}
+
+function setSessionCookie(res, token) {
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: SESSION_TTL_MS,
+    path: '/'
+  });
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/'
+  });
+}
+
+function requireAuth(req, res, next) {
+  if (isValidSession(req)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'Unauthorized' });
 }
 
 function normalizeDb(db) {
@@ -48,7 +130,14 @@ function normalizeDb(db) {
 app.use(express.json());
 
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+
+  if (ALLOWED_ORIGINS.has(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -63,6 +152,36 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+app.post('/api/auth/login', (req, res) => {
+  const password = String(req.body.password || '');
+
+  if (!safeCompare(password, APP_PASSWORD)) {
+    res.status(401).json({ error: 'Invalid password' });
+    return;
+  }
+
+  const token = createSession();
+  setSessionCookie(res, token);
+  res.json({ authenticated: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = getSessionToken(req);
+
+  if (token) {
+    sessions.delete(token);
+  }
+
+  clearSessionCookie(res);
+  res.json({ authenticated: false });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  res.json({ authenticated: isValidSession(req) });
+});
+
+app.use('/api', requireAuth);
 
 app.get('/api/suppliers', async (req, res, next) => {
   try {

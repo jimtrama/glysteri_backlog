@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
@@ -67,10 +67,15 @@ interface ConfirmRow {
   styleUrl: './app.scss'
 })
 export class App implements OnInit {
-  private readonly apiUrl = 'http://127.0.0.1:8084/api';
+  private readonly apiUrl = 'http://localhost:8084/api';
+  private readonly httpOptions = { withCredentials: true };
 
   pages: Page[] = ['suppliers', 'invoices', 'payments'];
   currentPage: Page = 'suppliers';
+  isAuthenticated = false;
+  isCheckingAuth = true;
+  loginPassword = '';
+  loginError = '';
   suppliers: Supplier[] = [];
   invoices: Invoice[] = [];
   payments: Payment[] = [];
@@ -93,7 +98,7 @@ export class App implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadData();
+    this.checkAuth();
   }
 
   navigate(page: Page): void {
@@ -102,12 +107,41 @@ export class App implements OnInit {
   }
 
   createSupplier(): void {
-    this.http.post<Supplier>(`${this.apiUrl}/suppliers`, this.newSupplier).subscribe({
+    this.http.post<Supplier>(`${this.apiUrl}/suppliers`, this.newSupplier, this.httpOptions).subscribe({
       next: () => {
         this.newSupplier = this.createEmptySupplierForm();
         this.loadData();
       },
       error: () => this.handleError('Could not create supplier.')
+    });
+  }
+
+  login(): void {
+    this.loginError = '';
+
+    this.http
+      .post<{ authenticated: boolean }>(
+        `${this.apiUrl}/auth/login`,
+        { password: this.loginPassword },
+        this.httpOptions
+      )
+      .subscribe({
+        next: () => {
+          this.isAuthenticated = true;
+          this.loginPassword = '';
+          this.loadData();
+        },
+        error: () => {
+          this.loginError = 'Wrong password.';
+          this.changeDetector.detectChanges();
+        }
+      });
+  }
+
+  logout(): void {
+    this.http.post(`${this.apiUrl}/auth/logout`, {}, this.httpOptions).subscribe({
+      next: () => this.clearAuthenticatedState(),
+      error: () => this.clearAuthenticatedState()
     });
   }
 
@@ -130,7 +164,11 @@ export class App implements OnInit {
     }
 
     this.http
-      .put<Supplier>(`${this.apiUrl}/suppliers/${this.editingSupplier.id}`, this.supplierForm)
+      .put<Supplier>(
+        `${this.apiUrl}/suppliers/${this.editingSupplier.id}`,
+        this.supplierForm,
+        this.httpOptions
+      )
       .subscribe({
         next: () => {
           this.closeEditSupplier();
@@ -200,7 +238,7 @@ export class App implements OnInit {
     const target = this.deleteTarget;
     const endpoint = `${this.apiUrl}/${this.getDeleteEndpoint(target.type)}/${target.id}`;
 
-    this.http.delete<void>(endpoint).subscribe({
+    this.http.delete<void>(endpoint, this.httpOptions).subscribe({
       next: () => {
         this.closeDelete();
         this.loadData();
@@ -245,7 +283,7 @@ export class App implements OnInit {
   }
 
   private confirmCreateInvoice(): void {
-    this.http.post(`${this.apiUrl}/invoices`, this.invoiceForm).subscribe({
+    this.http.post(`${this.apiUrl}/invoices`, this.invoiceForm, this.httpOptions).subscribe({
       next: () => {
         this.closeCreateConfirm();
         this.invoiceForm = this.createEmptyInvoiceForm();
@@ -256,7 +294,7 @@ export class App implements OnInit {
   }
 
   private confirmCreatePayment(): void {
-    this.http.post(`${this.apiUrl}/payments`, this.paymentForm).subscribe({
+    this.http.post(`${this.apiUrl}/payments`, this.paymentForm, this.httpOptions).subscribe({
       next: () => {
         this.closeCreateConfirm();
         this.paymentForm = this.createEmptyAmountForm();
@@ -271,9 +309,9 @@ export class App implements OnInit {
     this.errorMessage = '';
 
     forkJoin({
-      suppliers: this.http.get<Supplier[]>(`${this.apiUrl}/suppliers`),
-      invoices: this.http.get<Invoice[]>(`${this.apiUrl}/invoices`),
-      payments: this.http.get<Payment[]>(`${this.apiUrl}/payments`)
+      suppliers: this.http.get<Supplier[]>(`${this.apiUrl}/suppliers`, this.httpOptions),
+      invoices: this.http.get<Invoice[]>(`${this.apiUrl}/invoices`, this.httpOptions),
+      payments: this.http.get<Payment[]>(`${this.apiUrl}/payments`, this.httpOptions)
     }).subscribe({
       next: ({ suppliers, invoices, payments }) => {
         this.suppliers = suppliers;
@@ -283,8 +321,37 @@ export class App implements OnInit {
         this.isLoading = false;
         this.changeDetector.detectChanges();
       },
-      error: () => this.handleError('Could not load data.')
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 401) {
+          this.clearAuthenticatedState();
+          return;
+        }
+
+        this.handleError('Could not load data.');
+      }
     });
+  }
+
+  private checkAuth(): void {
+    this.http
+      .get<{ authenticated: boolean }>(`${this.apiUrl}/auth/me`, this.httpOptions)
+      .subscribe({
+        next: ({ authenticated }) => {
+          this.isAuthenticated = authenticated;
+          this.isCheckingAuth = false;
+
+          if (authenticated) {
+            this.loadData();
+          }
+
+          this.changeDetector.detectChanges();
+        },
+        error: () => {
+          this.isAuthenticated = false;
+          this.isCheckingAuth = false;
+          this.changeDetector.detectChanges();
+        }
+      });
   }
 
   private setDefaultSupplierSelections(): void {
@@ -324,6 +391,16 @@ export class App implements OnInit {
 
   private getDeleteEndpoint(type: DeleteType): string {
     return `${type}s`;
+  }
+
+  private clearAuthenticatedState(): void {
+    this.isAuthenticated = false;
+    this.isCheckingAuth = false;
+    this.suppliers = [];
+    this.invoices = [];
+    this.payments = [];
+    this.errorMessage = '';
+    this.changeDetector.detectChanges();
   }
 
   private handleError(message: string): void {

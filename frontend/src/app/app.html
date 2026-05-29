@@ -1,20 +1,54 @@
 <main class="app-shell">
+  <section class="auth-screen" *ngIf="isCheckingAuth">
+    <div class="auth-card">
+      <p class="eyebrow">Backlog</p>
+      <h1>Checking access</h1>
+      <p class="auth-copy">Please wait...</p>
+    </div>
+  </section>
+
+  <section class="auth-screen" *ngIf="!isCheckingAuth && !isAuthenticated">
+    <form class="auth-card" (ngSubmit)="login()">
+      <p class="eyebrow">Backlog</p>
+      <h1>Supplier ledger</h1>
+      <p class="auth-copy">Enter the app password to continue.</p>
+
+      <label>
+        Password
+        <input
+          name="loginPassword"
+          type="password"
+          required
+          autocomplete="current-password"
+          [(ngModel)]="loginPassword"
+        />
+      </label>
+
+      <p class="error auth-error" *ngIf="loginError">{{ loginError }}</p>
+      <button type="submit">Login</button>
+    </form>
+  </section>
+
+  <ng-container *ngIf="isAuthenticated">
   <header class="app-header">
     <div>
       <p class="eyebrow">Backlog</p>
       <h1>Supplier ledger</h1>
     </div>
 
-    <nav class="page-nav" aria-label="Main navigation">
-      <button
-        type="button"
-        *ngFor="let page of pages"
-        [class.active]="currentPage === page"
-        (click)="navigate(page)"
-      >
-        {{ page | titlecase }}
-      </button>
-    </nav>
+    <div class="header-actions">
+      <nav class="page-nav" aria-label="Main navigation">
+        <button
+          type="button"
+          *ngFor="let page of pages"
+          [class.active]="currentPage === page"
+          (click)="navigate(page)"
+        >
+          {{ page | titlecase }}
+        </button>
+      </nav>
+      <button type="button" class="secondary logout-button" (click)="logout()">Logout</button>
+    </div>
   </header>
 
   <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
@@ -424,4 +458,5 @@
       </div>
     </section>
   </div>
+  </ng-container>
 </main>
