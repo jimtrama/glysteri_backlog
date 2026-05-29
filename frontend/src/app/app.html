@@ -1,0 +1,427 @@
+<main class="app-shell">
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Backlog</p>
+      <h1>Supplier ledger</h1>
+    </div>
+
+    <nav class="page-nav" aria-label="Main navigation">
+      <button
+        type="button"
+        *ngFor="let page of pages"
+        [class.active]="currentPage === page"
+        (click)="navigate(page)"
+      >
+        {{ page | titlecase }}
+      </button>
+    </nav>
+  </header>
+
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  <p class="loading" *ngIf="isLoading">Loading...</p>
+
+  <section class="page" *ngIf="currentPage === 'suppliers'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ filteredSuppliers.length }} of {{ suppliers.length }} records</p>
+        <h2>Suppliers</h2>
+      </div>
+    </div>
+
+    <form class="create-panel" (ngSubmit)="createSupplier()">
+      <label>
+        Name
+        <input
+          name="newSupplierName"
+          type="text"
+          required
+          [(ngModel)]="newSupplier.name"
+        />
+      </label>
+      <label>
+        Open amount
+        <input
+          name="newSupplierOpen"
+          type="number"
+          min="0"
+          step="0.01"
+          [(ngModel)]="newSupplier.openAmount"
+        />
+      </label>
+      <label>
+        Paid amount
+        <input
+          name="newSupplierPaid"
+          type="number"
+          min="0"
+          step="0.01"
+          [(ngModel)]="newSupplier.paidAmount"
+        />
+      </label>
+      <button type="submit">Create supplier</button>
+    </form>
+
+    <div class="filter-panel">
+      <label>
+        Filter by supplier
+        <select name="supplierFilter" [(ngModel)]="supplierFilterId">
+          <option [ngValue]="0">All suppliers</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Open</th>
+            <th>Paid</th>
+            <th>Invoices</th>
+            <th>Payments</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let supplier of filteredSuppliers">
+            <td data-label="ID">#{{ supplier.id }}</td>
+            <td data-label="Name">{{ supplier.name }}</td>
+            <td data-label="Open">{{ formatMoney(supplier.openAmount) }}</td>
+            <td data-label="Paid">{{ formatMoney(supplier.paidAmount) }}</td>
+            <td data-label="Invoices">{{ supplier.invoiceIds.length }}</td>
+            <td data-label="Payments">{{ supplier.paymentIds.length }}</td>
+            <td data-label="Actions">
+              <div class="icon-actions">
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Edit supplier"
+                  title="Edit supplier"
+                  (click)="openEditSupplier(supplier)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 20h4l10.5-10.5-4-4L4 16v4z"></path>
+                    <path d="M13.5 6.5l4 4"></path>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="icon-button danger-icon"
+                  aria-label="Delete supplier"
+                  title="Delete supplier"
+                  (click)="openDelete('supplier', supplier.id, supplier.name)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                    <path d="M8 7l1-3h6l1 3"></path>
+                    <path d="M7 7l1 13h8l1-13"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="filteredSuppliers.length === 0">
+            <td colspan="7" class="empty-row">No suppliers yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" *ngIf="currentPage === 'invoices'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ filteredInvoices.length }} of {{ invoices.length }} records</p>
+        <h2>Invoices</h2>
+      </div>
+    </div>
+
+    <form class="create-panel compact" (ngSubmit)="createInvoice()">
+      <label>
+        Supplier
+        <select name="invoiceSupplier" required [(ngModel)]="invoiceForm.supplierId">
+          <option [ngValue]="0" disabled>Select supplier</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        Date
+        <input
+          name="invoiceDate"
+          type="date"
+          required
+          [(ngModel)]="invoiceForm.date"
+        />
+      </label>
+      <label>
+        Invoice number
+        <input
+          name="invoiceNumber"
+          type="text"
+          required
+          [(ngModel)]="invoiceForm.invoiceNumber"
+        />
+      </label>
+      <label>
+        Amount
+        <input
+          name="invoiceAmount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          [(ngModel)]="invoiceForm.amount"
+        />
+      </label>
+      <button type="submit" [disabled]="invoiceForm.supplierId === 0">Create invoice</button>
+    </form>
+
+    <div class="filter-panel">
+      <label>
+        Filter by supplier
+        <select name="invoiceSupplierFilter" [(ngModel)]="invoiceSupplierFilterId">
+          <option [ngValue]="0">All suppliers</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Invoice no.</th>
+            <th>Supplier</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Open</th>
+            <th>Paid</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let invoice of filteredInvoices">
+            <td data-label="ID">#{{ invoice.id }}</td>
+            <td data-label="Invoice no.">{{ invoice.invoiceNumber }}</td>
+            <td data-label="Supplier">{{ invoice.supplierName }}</td>
+            <td data-label="Date">{{ invoice.date }}</td>
+            <td data-label="Amount">{{ formatMoney(invoice.amount) }}</td>
+            <td data-label="Open">{{ formatMoney(invoice.openAmount) }}</td>
+            <td data-label="Paid">{{ formatMoney(invoice.paidAmount) }}</td>
+            <td data-label="Actions">
+              <div class="icon-actions">
+                <button
+                  type="button"
+                  class="icon-button danger-icon"
+                  aria-label="Delete invoice"
+                  title="Delete invoice"
+                  (click)="openDelete('invoice', invoice.id, 'Invoice #' + invoice.id)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                    <path d="M8 7l1-3h6l1 3"></path>
+                    <path d="M7 7l1 13h8l1-13"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="filteredInvoices.length === 0">
+            <td colspan="8" class="empty-row">No invoices yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" *ngIf="currentPage === 'payments'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ filteredPayments.length }} of {{ payments.length }} records</p>
+        <h2>Payments</h2>
+      </div>
+    </div>
+
+    <form class="create-panel compact" (ngSubmit)="createPayment()">
+      <label>
+        Supplier
+        <select name="paymentSupplier" required [(ngModel)]="paymentForm.supplierId">
+          <option [ngValue]="0" disabled>Select supplier</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+      <label>
+        Date
+        <input
+          name="paymentDate"
+          type="date"
+          required
+          [(ngModel)]="paymentForm.date"
+        />
+      </label>
+      <label>
+        Amount
+        <input
+          name="paymentAmount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          [(ngModel)]="paymentForm.amount"
+        />
+      </label>
+      <button type="submit" [disabled]="paymentForm.supplierId === 0">Create payment</button>
+    </form>
+
+    <div class="filter-panel">
+      <label>
+        Filter by supplier
+        <select name="paymentSupplierFilter" [(ngModel)]="paymentSupplierFilterId">
+          <option [ngValue]="0">All suppliers</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Supplier</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let payment of filteredPayments">
+            <td data-label="ID">#{{ payment.id }}</td>
+            <td data-label="Supplier">{{ getSupplierName(payment.supplierId) }}</td>
+            <td data-label="Date">{{ payment.date }}</td>
+            <td data-label="Amount">{{ formatMoney(payment.amount) }}</td>
+            <td data-label="Actions">
+              <div class="icon-actions">
+                <button
+                  type="button"
+                  class="icon-button danger-icon"
+                  aria-label="Delete payment"
+                  title="Delete payment"
+                  (click)="openDelete('payment', payment.id, 'Payment #' + payment.id)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                    <path d="M8 7l1-3h6l1 3"></path>
+                    <path d="M7 7l1 13h8l1-13"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="filteredPayments.length === 0">
+            <td colspan="5" class="empty-row">No payments yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="modal-backdrop" *ngIf="editingSupplier" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="editSupplierTitle">
+      <div class="modal-header">
+        <h2 id="editSupplierTitle">Edit supplier</h2>
+        <button type="button" class="icon-button" aria-label="Close modal" (click)="closeEditSupplier()">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6L6 18"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form class="modal-form" (ngSubmit)="updateSupplier()">
+        <label>
+          Name
+          <input name="supplierName" type="text" required [(ngModel)]="supplierForm.name" />
+        </label>
+        <label>
+          Open amount
+          <input
+            name="supplierOpen"
+            type="number"
+            min="0"
+            step="0.01"
+            [(ngModel)]="supplierForm.openAmount"
+          />
+        </label>
+        <label>
+          Paid amount
+          <input
+            name="supplierPaid"
+            type="number"
+            min="0"
+            step="0.01"
+            [(ngModel)]="supplierForm.paidAmount"
+          />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="secondary" (click)="closeEditSupplier()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" *ngIf="deleteTarget" role="presentation">
+    <section class="modal small" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+      <div class="modal-header">
+        <h2 id="deleteTitle">Confirm delete</h2>
+      </div>
+
+      <p class="modal-copy">
+        Delete {{ deleteTarget.label }}? This action cannot be undone.
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="closeDelete()">Cancel</button>
+        <button type="button" class="danger" (click)="confirmDelete()">Delete</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" *ngIf="createConfirmTarget" role="presentation">
+    <section class="modal small" role="dialog" aria-modal="true" aria-labelledby="createConfirmTitle">
+      <div class="modal-header">
+        <h2 id="createConfirmTitle">{{ createConfirmTitle }}</h2>
+      </div>
+
+      <dl class="confirm-list">
+        <div *ngFor="let row of createConfirmRows">
+          <dt>{{ row.label }}</dt>
+          <dd>{{ row.value }}</dd>
+        </div>
+      </dl>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary" (click)="closeCreateConfirm()">Cancel</button>
+        <button type="button" class="success" (click)="confirmCreate()">Confirm</button>
+      </div>
+    </section>
+  </div>
+</main>
