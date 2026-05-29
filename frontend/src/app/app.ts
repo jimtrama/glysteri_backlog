@@ -67,7 +67,7 @@ interface ConfirmRow {
   styleUrl: './app.scss'
 })
 export class App implements OnInit {
-  private readonly apiUrl = 'http://localhost:8084/api';
+  private readonly apiUrl = 'http://10.10.11.15:8084/api';
   private readonly httpOptions = { withCredentials: true };
 
   pages: Page[] = ['suppliers', 'invoices', 'payments'];

@@ -1,7 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
+const fsSync = require('fs');
 const fs = require('fs/promises');
 const path = require('path');
+
+loadEnvFile(path.join(__dirname, '.env'));
 
 const PORT = 8084;
 const app = express();
@@ -11,9 +14,39 @@ const SESSION_COOKIE = 'glysteri_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
 const ALLOWED_ORIGINS = new Set([
   'http://localhost:4200',
-  'http://127.0.0.1:4200'
+  'http://127.0.0.1:4200',
+  'http://10.10.11.15:8083'
 ]);
 const sessions = new Map();
+
+function loadEnvFile(filePath) {
+  if (!fsSync.existsSync(filePath)) {
+    return;
+  }
+
+  const lines = fsSync.readFileSync(filePath, 'utf8').split(/\r?\n/);
+
+  lines.forEach((line) => {
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine || trimmedLine.startsWith('#')) {
+      return;
+    }
+
+    const separatorIndex = trimmedLine.indexOf('=');
+
+    if (separatorIndex === -1) {
+      return;
+    }
+
+    const key = trimmedLine.slice(0, separatorIndex).trim();
+    const value = trimmedLine.slice(separatorIndex + 1).trim();
+
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  });
+}
 
 async function readDb() {
   const data = await fs.readFile(DB_PATH, 'utf8');
@@ -45,8 +78,8 @@ function parseCookies(cookieHeader = '') {
 }
 
 function safeCompare(left, right) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
+  const leftBuffer = Buffer.from(String(left ?? ''));
+  const rightBuffer = Buffer.from(String(right ?? ''));
 
   return leftBuffer.length === rightBuffer.length &&
     crypto.timingSafeEqual(leftBuffer, rightBuffer);
@@ -154,7 +187,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const password = String(req.body.password || '');
+  const password = String(req.body?.password || '');
 
   if (!safeCompare(password, APP_PASSWORD)) {
     res.status(401).json({ error: 'Invalid password' });
