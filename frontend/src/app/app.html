@@ -377,6 +377,82 @@
     </div>
   </section>
 
+  <section class="page" *ngIf="currentPage === 'graph'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ graphInvoices.length }} invoice points</p>
+        <h2>Graph</h2>
+      </div>
+    </div>
+
+    <div class="filter-panel">
+      <label>
+        Filter by supplier
+        <select name="graphSupplierFilter" [(ngModel)]="graphSupplierFilterId">
+          <option [ngValue]="0" disabled>Select supplier</option>
+          <option *ngFor="let supplier of suppliers" [ngValue]="supplier.id">
+            {{ supplier.name }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <section class="graph-panel" *ngIf="graphInvoices.length > 0; else graphEmpty">
+      <div class="graph-header">
+        <div>
+          <p class="eyebrow">{{ getSupplierName(graphSupplierFilterId) }}</p>
+          <h2>Open amount by invoice</h2>
+        </div>
+        <div class="graph-range">
+          <span>{{ formatMoney(graphMinOpenAmount) }}</span>
+          <span>{{ formatMoney(graphMaxOpenAmount) }}</span>
+        </div>
+      </div>
+
+      <svg
+        class="line-chart"
+        role="img"
+        aria-label="Open amount evolution by invoice"
+        [attr.viewBox]="'0 0 ' + chartWidth + ' ' + chartHeight"
+      >
+        <line
+          class="axis"
+          [attr.x1]="chartPadding"
+          [attr.y1]="chartHeight - chartPadding"
+          [attr.x2]="chartWidth - chartPadding"
+          [attr.y2]="chartHeight - chartPadding"
+        ></line>
+        <line
+          class="axis"
+          [attr.x1]="chartPadding"
+          [attr.y1]="chartPadding"
+          [attr.x2]="chartPadding"
+          [attr.y2]="chartHeight - chartPadding"
+        ></line>
+
+        <polyline class="chart-line" [attr.points]="graphPolylinePoints"></polyline>
+
+        <g *ngFor="let point of graphPoints">
+          <circle class="chart-point" r="6" [attr.cx]="point.x" [attr.cy]="point.y">
+            <title>
+              Invoice #{{ point.invoice.id }}: {{ formatMoney(point.invoice.openAmount) }}
+            </title>
+          </circle>
+          <text class="point-label" [attr.x]="point.x" [attr.y]="chartHeight - 16">
+            #{{ point.invoice.id }}
+          </text>
+        </g>
+      </svg>
+    </section>
+
+    <ng-template #graphEmpty>
+      <section class="graph-panel empty-graph">
+        <p class="eyebrow">No graph data</p>
+        <h2>No invoices for this supplier</h2>
+      </section>
+    </ng-template>
+  </section>
+
   <div class="modal-backdrop" *ngIf="editingSupplier" role="presentation">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="editSupplierTitle">
       <div class="modal-header">

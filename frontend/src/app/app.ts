@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
-type Page = 'suppliers' | 'invoices' | 'payments';
+type Page = 'suppliers' | 'invoices' | 'payments' | 'graph';
 type DeleteType = 'supplier' | 'invoice' | 'payment';
 type CreateConfirmType = 'invoice' | 'payment';
 
@@ -60,6 +60,12 @@ interface ConfirmRow {
   value: string;
 }
 
+interface GraphPoint {
+  invoice: Invoice;
+  x: number;
+  y: number;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
@@ -69,8 +75,11 @@ interface ConfirmRow {
 export class App implements OnInit {
   private readonly apiUrl = 'http://10.10.11.15:8084/api';
   private readonly httpOptions = { withCredentials: true };
+  readonly chartWidth = 900;
+  readonly chartHeight = 320;
+  readonly chartPadding = 44;
 
-  pages: Page[] = ['suppliers', 'invoices', 'payments'];
+  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph'];
   currentPage: Page = 'suppliers';
   isAuthenticated = false;
   isCheckingAuth = true;
@@ -86,6 +95,7 @@ export class App implements OnInit {
   supplierFilterId = 0;
   invoiceSupplierFilterId = 0;
   paymentSupplierFilterId = 0;
+  graphSupplierFilterId = 0;
   editingSupplier: Supplier | null = null;
   deleteTarget: DeleteTarget | null = null;
   createConfirmTarget: CreateConfirmType | null = null;
@@ -275,6 +285,52 @@ export class App implements OnInit {
     return this.payments.filter((payment) => payment.supplierId === this.paymentSupplierFilterId);
   }
 
+  get graphInvoices(): Invoice[] {
+    if (this.graphSupplierFilterId === 0) {
+      return [];
+    }
+
+    return this.invoices
+      .filter((invoice) => invoice.supplierId === this.graphSupplierFilterId)
+      .slice()
+      .sort((left, right) => left.id - right.id);
+  }
+
+  get graphPoints(): GraphPoint[] {
+    const invoices = this.graphInvoices;
+    const openAmounts = invoices.map((invoice) => invoice.openAmount);
+    const minOpenAmount = Math.min(...openAmounts);
+    const maxOpenAmount = Math.max(...openAmounts);
+    const chartInnerWidth = this.chartWidth - this.chartPadding * 2;
+    const chartInnerHeight = this.chartHeight - this.chartPadding * 2;
+
+    return invoices.map((invoice, index) => {
+      const x = invoices.length === 1
+        ? this.chartWidth / 2
+        : this.chartPadding + (index / (invoices.length - 1)) * chartInnerWidth;
+      const normalizedY = maxOpenAmount === minOpenAmount
+        ? 0.5
+        : (invoice.openAmount - minOpenAmount) / (maxOpenAmount - minOpenAmount);
+      const y = this.chartHeight - this.chartPadding - normalizedY * chartInnerHeight;
+
+      return { invoice, x, y };
+    });
+  }
+
+  get graphPolylinePoints(): string {
+    return this.graphPoints.map((point) => `${point.x},${point.y}`).join(' ');
+  }
+
+  get graphMinOpenAmount(): number {
+    const amounts = this.graphInvoices.map((invoice) => invoice.openAmount);
+    return amounts.length ? Math.min(...amounts) : 0;
+  }
+
+  get graphMaxOpenAmount(): number {
+    const amounts = this.graphInvoices.map((invoice) => invoice.openAmount);
+    return amounts.length ? Math.max(...amounts) : 0;
+  }
+
   formatMoney(value: number): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -363,6 +419,10 @@ export class App implements OnInit {
 
     if (!this.suppliers.some((supplier) => supplier.id === this.paymentForm.supplierId)) {
       this.paymentForm.supplierId = firstSupplierId;
+    }
+
+    if (!this.suppliers.some((supplier) => supplier.id === this.graphSupplierFilterId)) {
+      this.graphSupplierFilterId = firstSupplierId;
     }
   }
 

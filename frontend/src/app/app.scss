@@ -203,6 +203,66 @@ select:focus {
   background: #ffffff;
 }
 
+.graph-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #dfe5e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.graph-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.graph-range {
+  display: grid;
+  gap: 4px;
+  color: #0f766e;
+  font-weight: 800;
+  text-align: right;
+}
+
+.line-chart {
+  width: 100%;
+  min-height: 260px;
+  overflow: visible;
+}
+
+.axis {
+  stroke: #cfd9de;
+  stroke-width: 2;
+}
+
+.chart-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.chart-point {
+  fill: #ffffff;
+  stroke: #16a34a;
+  stroke-width: 4;
+}
+
+.point-label {
+  fill: #60717c;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.empty-graph {
+  color: #60717c;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -422,12 +482,21 @@ td:last-child {
 
   .page-nav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     width: 100%;
   }
 
   .page-nav button {
     padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .graph-header {
+    display: grid;
+  }
+
+  .graph-range {
+    text-align: left;
   }
 
   .create-panel,

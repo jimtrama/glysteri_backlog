@@ -13,7 +13,7 @@ const APP_PASSWORD = process.env.APP_PASSWORD;
 const SESSION_COOKIE = 'glysteri_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
 const ALLOWED_ORIGINS = new Set([
-  'http://localhost:4200',
+  'http://localhost:8083',
   'http://127.0.0.1:4200',
   'http://10.10.11.15:8083'
 ]);
