@@ -453,6 +453,140 @@
     </ng-template>
   </section>
 
+  <section class="page" *ngIf="currentPage === 'warehouse'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ warehouse.items.length }} stock items</p>
+        <h2>Warehouse</h2>
+      </div>
+    </div>
+
+    <form class="warehouse-form" (ngSubmit)="createWarehouseEntry()">
+      <div class="warehouse-form-grid">
+        <label>
+          Type
+          <select name="warehouseEntryType" [(ngModel)]="warehouseEntryForm.type">
+            <option [ngValue]="'add'">Add items</option>
+            <option [ngValue]="'remove'">Remove items</option>
+          </select>
+        </label>
+        <label>
+          Date
+          <input
+            name="warehouseEntryDate"
+            type="date"
+            required
+            [(ngModel)]="warehouseEntryForm.date"
+          />
+        </label>
+      </div>
+
+      <div class="warehouse-items">
+        <div
+          class="warehouse-item-row"
+          *ngFor="let item of warehouseEntryForm.items; let index = index"
+        >
+          <label>
+            Item name
+            <input
+              [name]="'warehouseItemName' + index"
+              type="text"
+              required
+              [(ngModel)]="item.name"
+            />
+          </label>
+          <label>
+            Quantity
+            <input
+              [name]="'warehouseItemQuantity' + index"
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              required
+              [(ngModel)]="item.quantity"
+            />
+          </label>
+          <button
+            type="button"
+            class="secondary"
+            (click)="removeWarehouseEntryItem(index)"
+          >
+            Remove row
+          </button>
+        </div>
+      </div>
+
+      <div class="warehouse-actions">
+        <button type="button" class="secondary" (click)="addWarehouseEntryItem()">Add row</button>
+        <button type="submit">
+          Save {{ warehouseEntryForm.type === 'add' ? 'addition' : 'removal' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="warehouse-grid">
+      <section class="data-panel">
+        <div class="panel-header">
+          <h2>Current stock</h2>
+        </div>
+        <div class="table-wrap embedded">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of warehouse.items">
+                <td data-label="ID">#{{ item.id }}</td>
+                <td data-label="Name">{{ item.name }}</td>
+                <td data-label="Quantity">{{ item.quantity }}</td>
+              </tr>
+              <tr *ngIf="warehouse.items.length === 0">
+                <td colspan="3" class="empty-row">No warehouse items yet</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="data-panel">
+        <div class="panel-header">
+          <h2>Entries</h2>
+        </div>
+        <div class="table-wrap embedded">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Items</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let entry of warehouse.entries">
+                <td data-label="ID">#{{ entry.id }}</td>
+                <td data-label="Type">{{ entry.type | titlecase }}</td>
+                <td data-label="Date">{{ entry.date }}</td>
+                <td data-label="Items">
+                  <span class="entry-item" *ngFor="let item of entry.items">
+                    {{ item.name }} x {{ item.quantity }}
+                  </span>
+                </td>
+              </tr>
+              <tr *ngIf="warehouse.entries.length === 0">
+                <td colspan="4" class="empty-row">No warehouse entries yet</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </section>
+
   <div class="modal-backdrop" *ngIf="editingSupplier" role="presentation">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="editSupplierTitle">
       <div class="modal-header">

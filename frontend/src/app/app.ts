@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
-type Page = 'suppliers' | 'invoices' | 'payments' | 'graph';
+type Page = 'suppliers' | 'invoices' | 'payments' | 'graph' | 'warehouse';
 type DeleteType = 'supplier' | 'invoice' | 'payment';
 type CreateConfirmType = 'invoice' | 'payment';
 
@@ -33,6 +33,31 @@ interface Payment {
   amount: number;
 }
 
+type WarehouseEntryType = 'add' | 'remove';
+
+interface WarehouseItem {
+  id: number;
+  name: string;
+  quantity: number;
+}
+
+interface WarehouseEntryItem {
+  name: string;
+  quantity: number;
+}
+
+interface WarehouseEntry {
+  id: number;
+  type: WarehouseEntryType;
+  date: string;
+  items: WarehouseEntryItem[];
+}
+
+interface Warehouse {
+  items: WarehouseItem[];
+  entries: WarehouseEntry[];
+}
+
 interface SupplierForm {
   name: string;
   openAmount: number;
@@ -47,6 +72,12 @@ interface AmountForm {
 
 interface InvoiceForm extends AmountForm {
   invoiceNumber: string;
+}
+
+interface WarehouseEntryForm {
+  type: WarehouseEntryType;
+  date: string;
+  items: WarehouseEntryItem[];
 }
 
 interface DeleteTarget {
@@ -79,7 +110,7 @@ export class App implements OnInit {
   readonly chartHeight = 320;
   readonly chartPadding = 44;
 
-  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph'];
+  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph', 'warehouse'];
   currentPage: Page = 'suppliers';
   isAuthenticated = false;
   isCheckingAuth = true;
@@ -88,10 +119,12 @@ export class App implements OnInit {
   suppliers: Supplier[] = [];
   invoices: Invoice[] = [];
   payments: Payment[] = [];
+  warehouse: Warehouse = this.createEmptyWarehouse();
   newSupplier: SupplierForm = this.createEmptySupplierForm();
   supplierForm: SupplierForm = this.createEmptySupplierForm();
   invoiceForm: InvoiceForm = this.createEmptyInvoiceForm();
   paymentForm: AmountForm = this.createEmptyAmountForm();
+  warehouseEntryForm: WarehouseEntryForm = this.createEmptyWarehouseEntryForm();
   supplierFilterId = 0;
   invoiceSupplierFilterId = 0;
   paymentSupplierFilterId = 0;
@@ -232,6 +265,31 @@ export class App implements OnInit {
     ];
   }
 
+  addWarehouseEntryItem(): void {
+    this.warehouseEntryForm.items.push({ name: '', quantity: 0 });
+  }
+
+  removeWarehouseEntryItem(index: number): void {
+    if (this.warehouseEntryForm.items.length === 1) {
+      this.warehouseEntryForm.items = [{ name: '', quantity: 0 }];
+      return;
+    }
+
+    this.warehouseEntryForm.items.splice(index, 1);
+  }
+
+  createWarehouseEntry(): void {
+    this.http
+      .post(`${this.apiUrl}/warehouse/entries`, this.warehouseEntryForm, this.httpOptions)
+      .subscribe({
+        next: () => {
+          this.warehouseEntryForm = this.createEmptyWarehouseEntryForm();
+          this.loadData();
+        },
+        error: () => this.handleError('Could not create warehouse entry.')
+      });
+  }
+
   openDelete(type: DeleteType, id: number, label: string): void {
     this.deleteTarget = { type, id, label };
   }
@@ -367,12 +425,14 @@ export class App implements OnInit {
     forkJoin({
       suppliers: this.http.get<Supplier[]>(`${this.apiUrl}/suppliers`, this.httpOptions),
       invoices: this.http.get<Invoice[]>(`${this.apiUrl}/invoices`, this.httpOptions),
-      payments: this.http.get<Payment[]>(`${this.apiUrl}/payments`, this.httpOptions)
+      payments: this.http.get<Payment[]>(`${this.apiUrl}/payments`, this.httpOptions),
+      warehouse: this.http.get<Warehouse>(`${this.apiUrl}/warehouse`, this.httpOptions)
     }).subscribe({
-      next: ({ suppliers, invoices, payments }) => {
+      next: ({ suppliers, invoices, payments, warehouse }) => {
         this.suppliers = suppliers;
         this.invoices = invoices;
         this.payments = payments;
+        this.warehouse = warehouse;
         this.setDefaultSupplierSelections();
         this.isLoading = false;
         this.changeDetector.detectChanges();
@@ -449,6 +509,21 @@ export class App implements OnInit {
     };
   }
 
+  private createEmptyWarehouse(): Warehouse {
+    return {
+      items: [],
+      entries: []
+    };
+  }
+
+  private createEmptyWarehouseEntryForm(): WarehouseEntryForm {
+    return {
+      type: 'add',
+      date: '',
+      items: [{ name: '', quantity: 0 }]
+    };
+  }
+
   private getDeleteEndpoint(type: DeleteType): string {
     return `${type}s`;
   }
@@ -459,6 +534,7 @@ export class App implements OnInit {
     this.suppliers = [];
     this.invoices = [];
     this.payments = [];
+    this.warehouse = this.createEmptyWarehouse();
     this.errorMessage = '';
     this.changeDetector.detectChanges();
   }

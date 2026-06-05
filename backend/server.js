@@ -139,6 +139,8 @@ function requireAuth(req, res, next) {
 }
 
 function normalizeDb(db) {
+  db.warehouse = normalizeWarehouse(db.warehouse);
+
   db.suppliers.forEach((supplier) => {
     supplier.openAmount = roundAmount(supplier.openAmount);
     supplier.paidAmount = roundAmount(supplier.paidAmount);
@@ -158,6 +160,57 @@ function normalizeDb(db) {
   });
 
   return db;
+}
+
+function normalizeWarehouse(warehouse) {
+  const normalizedWarehouse = warehouse || {};
+
+  normalizedWarehouse.items = Array.isArray(normalizedWarehouse.items)
+    ? normalizedWarehouse.items
+    : [];
+  normalizedWarehouse.entries = Array.isArray(normalizedWarehouse.entries)
+    ? normalizedWarehouse.entries
+    : [];
+
+  normalizedWarehouse.items.forEach((item) => {
+    item.quantity = roundAmount(item.quantity || 0);
+  });
+
+  normalizedWarehouse.entries.forEach((entry) => {
+    entry.items = Array.isArray(entry.items) ? entry.items : [];
+    entry.items.forEach((item) => {
+      item.name = String(item.name || '').trim();
+      item.quantity = roundAmount(item.quantity || 0);
+    });
+  });
+
+  return normalizedWarehouse;
+}
+
+function findWarehouseItem(warehouse, name) {
+  return warehouse.items.find(
+    (item) => item.name.toLowerCase() === name.toLowerCase()
+  );
+}
+
+function normalizeWarehouseEntryItems(items) {
+  const itemMap = new Map();
+
+  items.forEach((item) => {
+    const name = String(item.name || '').trim();
+    const quantity = Number(item.quantity);
+
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+      return;
+    }
+
+    itemMap.set(name.toLowerCase(), {
+      name,
+      quantity: roundAmount((itemMap.get(name.toLowerCase())?.quantity || 0) + quantity)
+    });
+  });
+
+  return [...itemMap.values()];
 }
 
 app.use(express.json());
@@ -563,6 +616,86 @@ app.delete('/api/payments/:id', async (req, res, next) => {
     await writeDb(db);
 
     res.sendStatus(204);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/warehouse', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    res.json(db.warehouse);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/warehouse/entries', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const type = String(req.body.type || '').trim();
+    const date = String(req.body.date || '').trim();
+    const items = normalizeWarehouseEntryItems(
+      Array.isArray(req.body.items) ? req.body.items : []
+    );
+
+    if (type !== 'add' && type !== 'remove') {
+      res.status(400).json({ error: 'Warehouse entry type must be add or remove' });
+      return;
+    }
+
+    if (!date) {
+      res.status(400).json({ error: 'Warehouse entry date is required' });
+      return;
+    }
+
+    if (items.length === 0) {
+      res.status(400).json({ error: 'At least one warehouse item is required' });
+      return;
+    }
+
+    if (type === 'remove') {
+      const unavailableItem = items.find((item) => {
+        const warehouseItem = findWarehouseItem(db.warehouse, item.name);
+        return !warehouseItem || warehouseItem.quantity < item.quantity;
+      });
+
+      if (unavailableItem) {
+        res.status(400).json({
+          error: `Not enough quantity for ${unavailableItem.name}`
+        });
+        return;
+      }
+    }
+
+    items.forEach((item) => {
+      let warehouseItem = findWarehouseItem(db.warehouse, item.name);
+
+      if (!warehouseItem) {
+        warehouseItem = {
+          id: getNextId(db.warehouse.items),
+          name: item.name,
+          quantity: 0
+        };
+        db.warehouse.items.push(warehouseItem);
+      }
+
+      warehouseItem.quantity = type === 'add'
+        ? roundAmount(warehouseItem.quantity + item.quantity)
+        : roundAmount(warehouseItem.quantity - item.quantity);
+    });
+
+    const entry = {
+      id: getNextId(db.warehouse.entries),
+      type,
+      date,
+      items
+    };
+
+    db.warehouse.entries.push(entry);
+    await writeDb(db);
+
+    res.status(201).json({ entry, warehouse: db.warehouse });
   } catch (error) {
     next(error);
   }

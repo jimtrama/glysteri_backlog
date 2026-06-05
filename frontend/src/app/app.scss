@@ -170,6 +170,71 @@ button:disabled {
   background: #ffffff;
 }
 
+.warehouse-form,
+.data-panel {
+  border: 1px solid #dfe5e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.warehouse-form {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.warehouse-form-grid,
+.warehouse-item-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.warehouse-item-row {
+  grid-template-columns: minmax(180px, 1.4fr) minmax(140px, 1fr) auto;
+  padding-top: 12px;
+  border-top: 1px solid #edf1f3;
+}
+
+.warehouse-item-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.warehouse-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.warehouse-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #dfe5e8;
+}
+
+.table-wrap.embedded {
+  border: 0;
+  border-radius: 0;
+}
+
+.entry-item {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #0f766e;
+  background: #dff5f0;
+  font-weight: 800;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -482,7 +547,7 @@ td:last-child {
 
   .page-nav {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
     width: 100%;
   }
 
@@ -501,8 +566,15 @@ td:last-child {
 
   .create-panel,
   .create-panel.compact,
-  .filter-panel {
+  .filter-panel,
+  .warehouse-form-grid,
+  .warehouse-item-row,
+  .warehouse-grid {
     grid-template-columns: 1fr;
+  }
+
+  .warehouse-actions {
+    display: grid;
   }
 
   .table-wrap {
