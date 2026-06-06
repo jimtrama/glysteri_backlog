@@ -36,7 +36,20 @@
       <h1>Supplier ledger</h1>
     </div>
 
-    <div class="header-actions">
+    <button
+      type="button"
+      class="menu-button"
+      [class.open]="mobileMenuOpen"
+      [attr.aria-expanded]="mobileMenuOpen"
+      aria-label="Toggle navigation"
+      (click)="toggleMobileMenu()"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div class="header-actions" [class.open]="mobileMenuOpen">
       <nav class="page-nav" aria-label="Main navigation">
         <button
           type="button"
@@ -465,7 +478,11 @@
       <div class="warehouse-form-grid">
         <label>
           Type
-          <select name="warehouseEntryType" [(ngModel)]="warehouseEntryForm.type">
+          <select
+            name="warehouseEntryType"
+            [ngModel]="warehouseEntryForm.type"
+            (ngModelChange)="setWarehouseEntryType($event)"
+          >
             <option [ngValue]="'add'">Add items</option>
             <option [ngValue]="'remove'">Remove items</option>
           </select>
@@ -488,12 +505,40 @@
         >
           <label>
             Item name
-            <input
-              [name]="'warehouseItemName' + index"
-              type="text"
-              required
-              [(ngModel)]="item.name"
-            />
+            <ng-container *ngIf="warehouseEntryForm.type === 'add'; else warehouseRemoveItemSelect">
+              <select
+                [name]="'warehouseItemSelect' + index"
+                required
+                [ngModel]="item.useNewName ? '__new__' : item.name"
+                (ngModelChange)="setWarehouseEntryItemName(index, $event)"
+              >
+                <option value="" disabled>Select item</option>
+                <option *ngFor="let warehouseItem of warehouse.items" [value]="warehouseItem.name">
+                  {{ warehouseItem.name }} ({{ warehouseItem.quantity }})
+                </option>
+                <option value="__new__">Add new item</option>
+              </select>
+              <input
+                *ngIf="item.useNewName"
+                [name]="'warehouseNewItemName' + index"
+                type="text"
+                placeholder="New item name"
+                required
+                [(ngModel)]="item.name"
+              />
+            </ng-container>
+            <ng-template #warehouseRemoveItemSelect>
+              <select
+                [name]="'warehouseItemName' + index"
+                required
+                [(ngModel)]="item.name"
+              >
+                <option value="" disabled>Select item</option>
+                <option *ngFor="let warehouseItem of warehouse.items" [value]="warehouseItem.name">
+                  {{ warehouseItem.name }} ({{ warehouseItem.quantity }})
+                </option>
+              </select>
+            </ng-template>
           </label>
           <label>
             Quantity

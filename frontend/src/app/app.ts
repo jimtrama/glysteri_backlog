@@ -44,6 +44,7 @@ interface WarehouseItem {
 interface WarehouseEntryItem {
   name: string;
   quantity: number;
+  useNewName?: boolean;
 }
 
 interface WarehouseEntry {
@@ -112,6 +113,7 @@ export class App implements OnInit {
 
   pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph', 'warehouse'];
   currentPage: Page = 'suppliers';
+  mobileMenuOpen = false;
   isAuthenticated = false;
   isCheckingAuth = true;
   loginPassword = '';
@@ -147,6 +149,15 @@ export class App implements OnInit {
   navigate(page: Page): void {
     this.currentPage = page;
     this.errorMessage = '';
+    this.closeMobileMenu();
+  }
+
+  toggleMobileMenu(): void {
+    this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  closeMobileMenu(): void {
+    this.mobileMenuOpen = false;
   }
 
   createSupplier(): void {
@@ -182,6 +193,7 @@ export class App implements OnInit {
   }
 
   logout(): void {
+    this.closeMobileMenu();
     this.http.post(`${this.apiUrl}/auth/logout`, {}, this.httpOptions).subscribe({
       next: () => this.clearAuthenticatedState(),
       error: () => this.clearAuthenticatedState()
@@ -229,6 +241,15 @@ export class App implements OnInit {
     this.createConfirmTarget = 'payment';
   }
 
+  setWarehouseEntryType(type: WarehouseEntryType): void {
+    this.warehouseEntryForm.type = type;
+    this.warehouseEntryForm.items = this.warehouseEntryForm.items.map((item) => ({
+      name: '',
+      quantity: item.quantity,
+      useNewName: false
+    }));
+  }
+
   closeCreateConfirm(): void {
     this.createConfirmTarget = null;
   }
@@ -266,16 +287,33 @@ export class App implements OnInit {
   }
 
   addWarehouseEntryItem(): void {
-    this.warehouseEntryForm.items.push({ name: '', quantity: 0 });
+    this.warehouseEntryForm.items.push(this.createEmptyWarehouseEntryItem());
   }
 
   removeWarehouseEntryItem(index: number): void {
     if (this.warehouseEntryForm.items.length === 1) {
-      this.warehouseEntryForm.items = [{ name: '', quantity: 0 }];
+      this.warehouseEntryForm.items = [this.createEmptyWarehouseEntryItem()];
       return;
     }
 
     this.warehouseEntryForm.items.splice(index, 1);
+  }
+
+  setWarehouseEntryItemName(index: number, value: string): void {
+    const item = this.warehouseEntryForm.items[index];
+
+    if (!item) {
+      return;
+    }
+
+    if (value === '__new__') {
+      item.useNewName = true;
+      item.name = '';
+      return;
+    }
+
+    item.useNewName = false;
+    item.name = value;
   }
 
   createWarehouseEntry(): void {
@@ -520,7 +558,15 @@ export class App implements OnInit {
     return {
       type: 'add',
       date: '',
-      items: [{ name: '', quantity: 0 }]
+      items: [this.createEmptyWarehouseEntryItem()]
+    };
+  }
+
+  private createEmptyWarehouseEntryItem(): WarehouseEntryItem {
+    return {
+      name: '',
+      quantity: 0,
+      useNewName: false
     };
   }
 

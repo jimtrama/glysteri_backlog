@@ -61,6 +61,10 @@
   gap: 10px;
 }
 
+.menu-button {
+  display: none;
+}
+
 .logout-button {
   min-width: 84px;
 }
@@ -538,11 +542,46 @@ td:last-child {
   .app-header {
     position: static;
     display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .menu-button {
+    display: inline-grid;
+    place-items: center;
+    gap: 4px;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0;
+    color: #172026;
+    border: 1px solid #cfd9de;
+    background: #ffffff;
+  }
+
+  .menu-button:hover,
+  .menu-button.open {
+    color: #2563eb;
+    border-color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .menu-button span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
   }
 
   .header-actions {
-    display: grid;
+    display: none;
     gap: 10px;
+    grid-column: 1 / -1;
+  }
+
+  .header-actions.open {
+    display: grid;
   }
 
   .page-nav {
