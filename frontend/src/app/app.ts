@@ -603,7 +603,7 @@ export class App implements OnInit {
   }
 
   get netIncome(): number {
-    return this.totalIncome - this.totalExpenses;
+    return this.totalCashIncome - this.totalExpenses;
   }
 
   get filteredDailyIncome(): DailyIncome[] {
