@@ -65,6 +65,10 @@ function roundAmount(value) {
   return Math.round((Number(value) + Number.EPSILON) * 10000) / 10000;
 }
 
+function normalizePaymentType(value) {
+  return value === 'card' ? 'card' : 'cash';
+}
+
 function parseCookies(cookieHeader = '') {
   return cookieHeader.split(';').reduce((cookies, cookie) => {
     const [name, ...valueParts] = cookie.trim().split('=');
@@ -140,6 +144,10 @@ function requireAuth(req, res, next) {
 
 function normalizeDb(db) {
   db.warehouse = normalizeWarehouse(db.warehouse);
+  db.employees = Array.isArray(db.employees) ? db.employees : [];
+  db.employeePayments = Array.isArray(db.employeePayments) ? db.employeePayments : [];
+  db.dailyIncome = Array.isArray(db.dailyIncome) ? db.dailyIncome : [];
+  db.expenses = Array.isArray(db.expenses) ? db.expenses : [];
 
   db.suppliers.forEach((supplier) => {
     supplier.openAmount = roundAmount(supplier.openAmount);
@@ -159,7 +167,50 @@ function normalizeDb(db) {
     payment.amount = roundAmount(payment.amount);
   });
 
+  db.employees.forEach((employee) => {
+    employee.name = String(employee.name || '').trim();
+    employee.dayRate = roundAmount(employee.dayRate || 0);
+    employee.workedDays = roundAmount(employee.workedDays || 0);
+    employee.paymentIds = Array.isArray(employee.paymentIds) ? employee.paymentIds : [];
+  });
+
+  db.employeePayments.forEach((payment) => {
+    payment.date = payment.date || '';
+    payment.type = normalizePaymentType(payment.type);
+    payment.amount = roundAmount(payment.amount);
+  });
+
+  db.dailyIncome.forEach((income) => {
+    income.date = income.date || '';
+    income.cashAmount = roundAmount(income.cashAmount || 0);
+    income.cardAmount = roundAmount(income.cardAmount || 0);
+    income.totalAmount = roundAmount(income.cashAmount + income.cardAmount);
+  });
+
+  db.expenses.forEach((expense) => {
+    expense.date = expense.date || '';
+    expense.description = String(expense.description || '').trim();
+    expense.amount = roundAmount(expense.amount || 0);
+  });
+
+  recalculateEmployees(db);
+
   return db;
+}
+
+function recalculateEmployees(db) {
+  db.employees.forEach((employee) => {
+    const paidAmount = db.employeePayments
+      .filter((payment) => payment.employeeId === employee.id)
+      .reduce((total, payment) => total + Number(payment.amount || 0), 0);
+
+    employee.totalAmount = roundAmount(employee.dayRate * employee.workedDays);
+    employee.paidAmount = roundAmount(paidAmount);
+    employee.remainingAmount = roundAmount(Math.max(0, employee.totalAmount - employee.paidAmount));
+    employee.paymentIds = db.employeePayments
+      .filter((payment) => payment.employeeId === employee.id)
+      .map((payment) => payment.id);
+  });
 }
 
 function normalizeWarehouse(warehouse) {
@@ -696,6 +747,340 @@ app.post('/api/warehouse/entries', async (req, res, next) => {
     await writeDb(db);
 
     res.status(201).json({ entry, warehouse: db.warehouse });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/employees', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    res.json(db.employees);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/employees', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const name = String(req.body.name || '').trim();
+    const dayRate = Number(req.body.dayRate || 0);
+    const workedDays = Number(req.body.workedDays || 0);
+
+    if (!name) {
+      res.status(400).json({ error: 'Employee name is required' });
+      return;
+    }
+
+    if (!Number.isFinite(dayRate) || dayRate < 0) {
+      res.status(400).json({ error: 'Day rate must be 0 or greater' });
+      return;
+    }
+
+    if (!Number.isFinite(workedDays) || workedDays < 0) {
+      res.status(400).json({ error: 'Worked days must be 0 or greater' });
+      return;
+    }
+
+    const employee = {
+      id: getNextId(db.employees),
+      name,
+      dayRate: roundAmount(dayRate),
+      workedDays: roundAmount(workedDays),
+      totalAmount: 0,
+      paidAmount: 0,
+      remainingAmount: 0,
+      paymentIds: []
+    };
+
+    db.employees.push(employee);
+    recalculateEmployees(db);
+    await writeDb(db);
+
+    res.status(201).json(employee);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/employees/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const employeeId = Number(req.params.id);
+    const employee = db.employees.find((item) => item.id === employeeId);
+
+    if (!employee) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    const name = String(req.body.name || '').trim();
+    const dayRate = Number(req.body.dayRate);
+    const workedDays = Number(req.body.workedDays);
+
+    if (!name) {
+      res.status(400).json({ error: 'Employee name is required' });
+      return;
+    }
+
+    if (!Number.isFinite(dayRate) || dayRate < 0) {
+      res.status(400).json({ error: 'Day rate must be 0 or greater' });
+      return;
+    }
+
+    if (!Number.isFinite(workedDays) || workedDays < 0) {
+      res.status(400).json({ error: 'Worked days must be 0 or greater' });
+      return;
+    }
+
+    employee.name = name;
+    employee.dayRate = roundAmount(dayRate);
+    employee.workedDays = roundAmount(workedDays);
+
+    recalculateEmployees(db);
+    await writeDb(db);
+
+    res.json(employee);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/employees/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const employeeId = Number(req.params.id);
+    const employeeIndex = db.employees.findIndex((item) => item.id === employeeId);
+
+    if (employeeIndex === -1) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    db.employees.splice(employeeIndex, 1);
+    db.employeePayments = db.employeePayments.filter((payment) => payment.employeeId !== employeeId);
+    recalculateEmployees(db);
+    await writeDb(db);
+
+    res.sendStatus(204);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/employee-payments', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    res.json(db.employeePayments);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/employee-payments', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const employeeId = Number(req.body.employeeId);
+    const date = String(req.body.date || '').trim();
+    const type = normalizePaymentType(req.body.type);
+    const amount = Number(req.body.amount);
+    const employee = db.employees.find((item) => item.id === employeeId);
+
+    if (!employee) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    if (!date) {
+      res.status(400).json({ error: 'Payment date is required' });
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: 'Payment amount must be greater than 0' });
+      return;
+    }
+
+    if (amount > employee.remainingAmount) {
+      res.status(400).json({ error: 'Payment amount cannot exceed remaining amount' });
+      return;
+    }
+
+    const payment = {
+      id: getNextId(db.employeePayments),
+      employeeId,
+      date,
+      type,
+      amount: roundAmount(amount)
+    };
+
+    db.employeePayments.push(payment);
+    recalculateEmployees(db);
+    await writeDb(db);
+
+    res.status(201).json({ payment, employee });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/employee-payments/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const paymentId = Number(req.params.id);
+    const paymentIndex = db.employeePayments.findIndex((item) => item.id === paymentId);
+
+    if (paymentIndex === -1) {
+      res.status(404).json({ error: 'Employee payment not found' });
+      return;
+    }
+
+    db.employeePayments.splice(paymentIndex, 1);
+    recalculateEmployees(db);
+    await writeDb(db);
+
+    res.sendStatus(204);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/daily-income', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    res.json(db.dailyIncome);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/daily-income', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const date = String(req.body.date || '').trim();
+    const cashAmount = Number(req.body.cashAmount || 0);
+    const cardAmount = Number(req.body.cardAmount || 0);
+
+    if (!date) {
+      res.status(400).json({ error: 'Income date is required' });
+      return;
+    }
+
+    if (!Number.isFinite(cashAmount) || cashAmount < 0) {
+      res.status(400).json({ error: 'Cash amount must be 0 or greater' });
+      return;
+    }
+
+    if (!Number.isFinite(cardAmount) || cardAmount < 0) {
+      res.status(400).json({ error: 'Card amount must be 0 or greater' });
+      return;
+    }
+
+    if (cashAmount === 0 && cardAmount === 0) {
+      res.status(400).json({ error: 'At least one income amount is required' });
+      return;
+    }
+
+    const income = {
+      id: getNextId(db.dailyIncome),
+      date,
+      cashAmount: roundAmount(cashAmount),
+      cardAmount: roundAmount(cardAmount),
+      totalAmount: roundAmount(cashAmount + cardAmount)
+    };
+
+    db.dailyIncome.push(income);
+    await writeDb(db);
+
+    res.status(201).json(income);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/daily-income/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const incomeId = Number(req.params.id);
+    const incomeIndex = db.dailyIncome.findIndex((item) => item.id === incomeId);
+
+    if (incomeIndex === -1) {
+      res.status(404).json({ error: 'Daily income not found' });
+      return;
+    }
+
+    db.dailyIncome.splice(incomeIndex, 1);
+    await writeDb(db);
+
+    res.sendStatus(204);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/expenses', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    res.json(db.expenses);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/expenses', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const date = String(req.body.date || '').trim();
+    const description = String(req.body.description || '').trim();
+    const amount = Number(req.body.amount);
+
+    if (!date) {
+      res.status(400).json({ error: 'Expense date is required' });
+      return;
+    }
+
+    if (!description) {
+      res.status(400).json({ error: 'Expense description is required' });
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: 'Expense amount must be greater than 0' });
+      return;
+    }
+
+    const expense = {
+      id: getNextId(db.expenses),
+      date,
+      description,
+      amount: roundAmount(amount)
+    };
+
+    db.expenses.push(expense);
+    await writeDb(db);
+
+    res.status(201).json(expense);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/expenses/:id', async (req, res, next) => {
+  try {
+    const db = await readDb();
+    const expenseId = Number(req.params.id);
+    const expenseIndex = db.expenses.findIndex((item) => item.id === expenseId);
+
+    if (expenseIndex === -1) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    db.expenses.splice(expenseIndex, 1);
+    await writeDb(db);
+
+    res.sendStatus(204);
   } catch (error) {
     next(error);
   }

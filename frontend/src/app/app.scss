@@ -174,6 +174,41 @@ button:disabled {
   background: #ffffff;
 }
 
+.filter-panel.embedded-filter {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 260px));
+  border: 0;
+  border-bottom: 1px solid #dfe5e8;
+  border-radius: 0;
+}
+
+.employee-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #dfe5e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.metric-card strong {
+  color: #172026;
+  font-size: clamp(22px, 3vw, 30px);
+}
+
+.metric-card.paid strong {
+  color: #0f766e;
+}
+
+.metric-card.remaining strong {
+  color: #b42318;
+}
+
 .warehouse-form,
 .data-panel {
   border: 1px solid #dfe5e8;
@@ -237,6 +272,11 @@ button:disabled {
   color: #0f766e;
   background: #dff5f0;
   font-weight: 800;
+}
+
+.entry-item.remove-entry-item {
+  color: #b42318;
+  background: #fee4e2;
 }
 
 label {
@@ -315,10 +355,18 @@ select:focus {
   stroke-width: 4;
 }
 
+.warehouse-chart-line {
+  stroke: #0f766e;
+}
+
 .chart-point {
   fill: #ffffff;
   stroke: #16a34a;
   stroke-width: 4;
+}
+
+.remove-chart-point {
+  stroke: #dc2626;
 }
 
 .point-label {
@@ -353,6 +401,12 @@ th {
 
 tr:last-child td {
   border-bottom: 0;
+}
+
+tfoot td {
+  color: #172026;
+  background: #f8fafb;
+  font-weight: 800;
 }
 
 th:last-child,
@@ -586,7 +640,7 @@ td:last-child {
 
   .page-nav {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
     width: 100%;
   }
 
@@ -606,6 +660,7 @@ td:last-child {
   .create-panel,
   .create-panel.compact,
   .filter-panel,
+  .employee-summary-grid,
   .warehouse-form-grid,
   .warehouse-item-row,
   .warehouse-grid {
@@ -624,6 +679,7 @@ td:last-child {
   table,
   thead,
   tbody,
+  tfoot,
   tr,
   th,
   td {
