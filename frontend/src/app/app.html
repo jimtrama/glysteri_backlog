@@ -986,9 +986,31 @@
   <section class="page" *ngIf="currentPage === 'incomeOverview'">
     <div class="page-title">
       <div>
-        <p class="eyebrow">{{ dailyIncome.length }} income days, {{ expenses.length }} expenses</p>
+        <p class="eyebrow">
+          {{ filteredDailyIncome.length }} of {{ dailyIncome.length }} income days,
+          {{ filteredExpenses.length }} of {{ expenses.length }} expenses
+        </p>
         <h2>Income overview</h2>
       </div>
+    </div>
+
+    <div class="filter-panel income-date-filter">
+      <label>
+        From date
+        <input
+          name="incomeFromDate"
+          type="date"
+          [(ngModel)]="incomeFromDate"
+        />
+      </label>
+      <label>
+        To date
+        <input
+          name="incomeToDate"
+          type="date"
+          [(ngModel)]="incomeToDate"
+        />
+      </label>
     </div>
 
     <div class="employee-summary-grid">
@@ -1124,8 +1146,10 @@
                   </div>
                 </td>
               </tr>
-              <tr *ngIf="dailyIncome.length === 0">
-                <td colspan="6" class="empty-row">No daily income yet</td>
+              <tr *ngIf="sortedDailyIncome.length === 0">
+                <td colspan="6" class="empty-row">
+                  {{ dailyIncome.length === 0 ? 'No daily income yet' : 'No income in this date range' }}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1173,14 +1197,122 @@
                   </div>
                 </td>
               </tr>
-              <tr *ngIf="expenses.length === 0">
-                <td colspan="5" class="empty-row">No expenses yet</td>
+              <tr *ngIf="sortedExpenses.length === 0">
+                <td colspan="5" class="empty-row">
+                  {{ expenses.length === 0 ? 'No expenses yet' : 'No expenses in this date range' }}
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
     </div>
+  </section>
+
+  <section class="page" *ngIf="currentPage === 'incomeGraph'">
+    <div class="page-title">
+      <div>
+        <p class="eyebrow">{{ incomeGraphRows.length }} graph days</p>
+        <h2>Income graph</h2>
+      </div>
+    </div>
+
+    <div class="filter-panel income-date-filter">
+      <label>
+        From date
+        <input
+          name="incomeGraphFromDate"
+          type="date"
+          [(ngModel)]="incomeFromDate"
+        />
+      </label>
+      <label>
+        To date
+        <input
+          name="incomeGraphToDate"
+          type="date"
+          [(ngModel)]="incomeToDate"
+        />
+      </label>
+    </div>
+
+    <section class="graph-panel" *ngIf="incomeGraphRows.length > 0; else incomeGraphEmpty">
+      <div class="graph-header">
+        <div>
+          <p class="eyebrow">Cash, card, total, expenses</p>
+          <h2>Money by date</h2>
+        </div>
+        <div class="graph-range">
+          <span>{{ formatMoney(0) }}</span>
+          <span>{{ formatMoney(incomeGraphMaxAmount) }}</span>
+        </div>
+      </div>
+
+      <div class="chart-legend">
+        <span class="legend-item cash">Cash</span>
+        <span class="legend-item card">Card</span>
+        <span class="legend-item total">Total</span>
+        <span class="legend-item expenses">Expenses</span>
+      </div>
+
+      <svg
+        class="line-chart"
+        role="img"
+        aria-label="Income and expenses over time"
+        [attr.viewBox]="'0 0 ' + chartWidth + ' ' + chartHeight"
+      >
+        <line
+          class="axis"
+          [attr.x1]="chartPadding"
+          [attr.y1]="chartHeight - chartPadding"
+          [attr.x2]="chartWidth - chartPadding"
+          [attr.y2]="chartHeight - chartPadding"
+        ></line>
+        <line
+          class="axis"
+          [attr.x1]="chartPadding"
+          [attr.y1]="chartPadding"
+          [attr.x2]="chartPadding"
+          [attr.y2]="chartHeight - chartPadding"
+        ></line>
+
+        <polyline class="chart-line income-cash-line" [attr.points]="incomeCashPolylinePoints"></polyline>
+        <polyline class="chart-line income-card-line" [attr.points]="incomeCardPolylinePoints"></polyline>
+        <polyline class="chart-line income-total-line" [attr.points]="incomeTotalPolylinePoints"></polyline>
+        <polyline class="chart-line income-expense-line" [attr.points]="incomeExpensePolylinePoints"></polyline>
+
+        <g *ngFor="let point of incomeCashGraphPoints">
+          <circle class="chart-point income-cash-point" r="5" [attr.cx]="point.x" [attr.cy]="point.y">
+            <title>{{ point.date }} cash: {{ formatMoney(point.value) }}</title>
+          </circle>
+        </g>
+        <g *ngFor="let point of incomeCardGraphPoints">
+          <circle class="chart-point income-card-point" r="5" [attr.cx]="point.x" [attr.cy]="point.y">
+            <title>{{ point.date }} card: {{ formatMoney(point.value) }}</title>
+          </circle>
+        </g>
+        <g *ngFor="let point of incomeTotalGraphPoints">
+          <circle class="chart-point income-total-point" r="6" [attr.cx]="point.x" [attr.cy]="point.y">
+            <title>{{ point.date }} total: {{ formatMoney(point.value) }}</title>
+          </circle>
+        </g>
+        <g *ngFor="let point of incomeExpenseGraphPoints">
+          <circle class="chart-point income-expense-point" r="5" [attr.cx]="point.x" [attr.cy]="point.y">
+            <title>{{ point.date }} expenses: {{ formatMoney(point.value) }}</title>
+          </circle>
+          <text class="point-label" [attr.x]="point.x" [attr.y]="chartHeight - 16">
+            {{ point.date }}
+          </text>
+        </g>
+      </svg>
+    </section>
+
+    <ng-template #incomeGraphEmpty>
+      <section class="graph-panel empty-graph">
+        <p class="eyebrow">No graph data</p>
+        <h2>No income or expenses in this date range</h2>
+      </section>
+    </ng-template>
   </section>
 
   <div class="modal-backdrop" *ngIf="editingSupplier" role="presentation">

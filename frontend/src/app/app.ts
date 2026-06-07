@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
-type Page = 'suppliers' | 'invoices' | 'payments' | 'graph' | 'warehouse' | 'warehouseGraph' | 'employees' | 'incomeOverview';
+type Page = 'suppliers' | 'invoices' | 'payments' | 'graph' | 'warehouse' | 'warehouseGraph' | 'employees' | 'incomeOverview' | 'incomeGraph';
 type DeleteType = 'supplier' | 'invoice' | 'payment' | 'employee' | 'employeePayment' | 'dailyIncome' | 'expense';
 type CreateConfirmType = 'invoice' | 'payment';
 type EmployeePaymentType = 'cash' | 'card';
@@ -167,6 +167,21 @@ interface WarehouseGraphPoint {
   y: number;
 }
 
+interface IncomeGraphRow {
+  date: string;
+  cashAmount: number;
+  cardAmount: number;
+  totalAmount: number;
+  expenseAmount: number;
+}
+
+interface IncomeGraphPoint {
+  date: string;
+  value: number;
+  x: number;
+  y: number;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
@@ -180,7 +195,7 @@ export class App implements OnInit {
   readonly chartHeight = 320;
   readonly chartPadding = 44;
 
-  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph', 'warehouse', 'warehouseGraph', 'employees', 'incomeOverview'];
+  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph', 'warehouse', 'warehouseGraph', 'employees', 'incomeOverview', 'incomeGraph'];
   currentPage: Page = 'suppliers';
   mobileMenuOpen = false;
   isAuthenticated = false;
@@ -212,6 +227,8 @@ export class App implements OnInit {
   warehouseGraphItemId = 0;
   employeePaymentFilterId = 0;
   employeePaymentTypeFilter: EmployeePaymentTypeFilter = 'all';
+  incomeFromDate = '';
+  incomeToDate = '';
   editingEmployee: Employee | null = null;
   editingEmployeeForm: EmployeeForm = this.createEmptyEmployeeForm();
   editingSupplier: Supplier | null = null;
@@ -528,7 +545,8 @@ export class App implements OnInit {
       warehouse: 'Warehouse',
       warehouseGraph: 'Warehouse graph',
       employees: 'Employees',
-      incomeOverview: 'Income overview'
+      incomeOverview: 'Income overview',
+      incomeGraph: 'Income graph'
     };
 
     return labels[page];
@@ -569,31 +587,112 @@ export class App implements OnInit {
   }
 
   get totalCashIncome(): number {
-    return this.dailyIncome.reduce((total, income) => total + income.cashAmount, 0);
+    return this.filteredDailyIncome.reduce((total, income) => total + income.cashAmount, 0);
   }
 
   get totalCardIncome(): number {
-    return this.dailyIncome.reduce((total, income) => total + income.cardAmount, 0);
+    return this.filteredDailyIncome.reduce((total, income) => total + income.cardAmount, 0);
   }
 
   get totalIncome(): number {
-    return this.dailyIncome.reduce((total, income) => total + income.totalAmount, 0);
+    return this.filteredDailyIncome.reduce((total, income) => total + income.totalAmount, 0);
   }
 
   get totalExpenses(): number {
-    return this.expenses.reduce((total, expense) => total + expense.amount, 0);
+    return this.filteredExpenses.reduce((total, expense) => total + expense.amount, 0);
   }
 
   get netIncome(): number {
     return this.totalIncome - this.totalExpenses;
   }
 
+  get filteredDailyIncome(): DailyIncome[] {
+    return this.dailyIncome.filter((income) => this.isInIncomeDateRange(income.date));
+  }
+
+  get filteredExpenses(): Expense[] {
+    return this.expenses.filter((expense) => this.isInIncomeDateRange(expense.date));
+  }
+
   get sortedDailyIncome(): DailyIncome[] {
-    return this.dailyIncome.slice().sort((left, right) => right.date.localeCompare(left.date) || right.id - left.id);
+    return this.filteredDailyIncome
+      .slice()
+      .sort((left, right) => right.date.localeCompare(left.date) || right.id - left.id);
   }
 
   get sortedExpenses(): Expense[] {
-    return this.expenses.slice().sort((left, right) => right.date.localeCompare(left.date) || right.id - left.id);
+    return this.filteredExpenses
+      .slice()
+      .sort((left, right) => right.date.localeCompare(left.date) || right.id - left.id);
+  }
+
+  get incomeGraphRows(): IncomeGraphRow[] {
+    const rows = new Map<string, IncomeGraphRow>();
+
+    this.filteredDailyIncome.forEach((income) => {
+      const row = this.getIncomeGraphRow(rows, income.date);
+      row.cashAmount += income.cashAmount;
+      row.cardAmount += income.cardAmount;
+      row.totalAmount += income.totalAmount;
+    });
+
+    this.filteredExpenses.forEach((expense) => {
+      const row = this.getIncomeGraphRow(rows, expense.date);
+      row.expenseAmount += expense.amount;
+    });
+
+    return [...rows.values()]
+      .map((row) => ({
+        date: row.date,
+        cashAmount: this.roundForDisplay(row.cashAmount),
+        cardAmount: this.roundForDisplay(row.cardAmount),
+        totalAmount: this.roundForDisplay(row.totalAmount),
+        expenseAmount: this.roundForDisplay(row.expenseAmount)
+      }))
+      .sort((left, right) => left.date.localeCompare(right.date));
+  }
+
+  get incomeGraphMaxAmount(): number {
+    const amounts = this.incomeGraphRows.flatMap((row) => [
+      row.cashAmount,
+      row.cardAmount,
+      row.totalAmount,
+      row.expenseAmount
+    ]);
+
+    return amounts.length ? Math.max(...amounts, 0) : 0;
+  }
+
+  get incomeCashGraphPoints(): IncomeGraphPoint[] {
+    return this.createIncomeGraphPoints((row) => row.cashAmount);
+  }
+
+  get incomeCardGraphPoints(): IncomeGraphPoint[] {
+    return this.createIncomeGraphPoints((row) => row.cardAmount);
+  }
+
+  get incomeTotalGraphPoints(): IncomeGraphPoint[] {
+    return this.createIncomeGraphPoints((row) => row.totalAmount);
+  }
+
+  get incomeExpenseGraphPoints(): IncomeGraphPoint[] {
+    return this.createIncomeGraphPoints((row) => row.expenseAmount);
+  }
+
+  get incomeCashPolylinePoints(): string {
+    return this.toPolylinePoints(this.incomeCashGraphPoints);
+  }
+
+  get incomeCardPolylinePoints(): string {
+    return this.toPolylinePoints(this.incomeCardGraphPoints);
+  }
+
+  get incomeTotalPolylinePoints(): string {
+    return this.toPolylinePoints(this.incomeTotalGraphPoints);
+  }
+
+  get incomeExpensePolylinePoints(): string {
+    return this.toPolylinePoints(this.incomeExpenseGraphPoints);
   }
 
   get filteredSuppliers(): Supplier[] {
@@ -953,6 +1052,63 @@ export class App implements OnInit {
     return this.filteredEmployeePayments
       .filter((payment) => payment.type === type)
       .reduce((total, payment) => total + payment.amount, 0);
+  }
+
+  private getIncomeGraphRow(rows: Map<string, IncomeGraphRow>, date: string): IncomeGraphRow {
+    const existingRow = rows.get(date);
+
+    if (existingRow) {
+      return existingRow;
+    }
+
+    const row = {
+      date,
+      cashAmount: 0,
+      cardAmount: 0,
+      totalAmount: 0,
+      expenseAmount: 0
+    };
+
+    rows.set(date, row);
+    return row;
+  }
+
+  private createIncomeGraphPoints(getValue: (row: IncomeGraphRow) => number): IncomeGraphPoint[] {
+    const rows = this.incomeGraphRows;
+    const maxAmount = this.incomeGraphMaxAmount;
+    const chartInnerWidth = this.chartWidth - this.chartPadding * 2;
+    const chartInnerHeight = this.chartHeight - this.chartPadding * 2;
+
+    return rows.map((row, index) => {
+      const value = getValue(row);
+      const x = rows.length === 1
+        ? this.chartWidth / 2
+        : this.chartPadding + (index / (rows.length - 1)) * chartInnerWidth;
+      const normalizedY = maxAmount === 0 ? 0 : value / maxAmount;
+      const y = this.chartHeight - this.chartPadding - normalizedY * chartInnerHeight;
+
+      return { date: row.date, value, x, y };
+    });
+  }
+
+  private toPolylinePoints(points: IncomeGraphPoint[]): string {
+    return points.map((point) => `${point.x},${point.y}`).join(' ');
+  }
+
+  private roundForDisplay(value: number): number {
+    return Math.round((value + Number.EPSILON) * 10000) / 10000;
+  }
+
+  private isInIncomeDateRange(date: string): boolean {
+    if (this.incomeFromDate && date < this.incomeFromDate) {
+      return false;
+    }
+
+    if (this.incomeToDate && date > this.incomeToDate) {
+      return false;
+    }
+
+    return true;
   }
 
   private clearAuthenticatedState(): void {

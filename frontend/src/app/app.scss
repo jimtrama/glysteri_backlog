@@ -181,6 +181,10 @@ button:disabled {
   border-radius: 0;
 }
 
+.filter-panel.income-date-filter {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 240px));
+}
+
 .employee-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -359,10 +363,42 @@ select:focus {
   stroke: #0f766e;
 }
 
+.income-cash-line {
+  stroke: #0f766e;
+}
+
+.income-card-line {
+  stroke: #2563eb;
+}
+
+.income-total-line {
+  stroke: #7c3aed;
+}
+
+.income-expense-line {
+  stroke: #dc2626;
+}
+
 .chart-point {
   fill: #ffffff;
   stroke: #16a34a;
   stroke-width: 4;
+}
+
+.income-cash-point {
+  stroke: #0f766e;
+}
+
+.income-card-point {
+  stroke: #2563eb;
+}
+
+.income-total-point {
+  stroke: #7c3aed;
+}
+
+.income-expense-point {
+  stroke: #dc2626;
 }
 
 .remove-chart-point {
@@ -378,6 +414,45 @@ select:focus {
 
 .empty-graph {
   color: #60717c;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #43525c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.legend-item::before {
+  content: "";
+  width: 22px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.legend-item.cash {
+  color: #0f766e;
+}
+
+.legend-item.card {
+  color: #2563eb;
+}
+
+.legend-item.total {
+  color: #7c3aed;
+}
+
+.legend-item.expenses {
+  color: #dc2626;
 }
 
 table {
