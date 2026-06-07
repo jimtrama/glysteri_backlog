@@ -59,6 +59,27 @@
         >
           {{ getPageLabel(page) }}
         </button>
+        <div class="nav-menu" [class.open]="graphMenuOpen">
+          <button
+            type="button"
+            class="nav-menu-trigger"
+            [class.active]="isGraphPageActive"
+            [attr.aria-expanded]="graphMenuOpen"
+            (click)="toggleGraphMenu()"
+          >
+            Graph
+          </button>
+          <div class="nav-submenu">
+            <button
+              type="button"
+              *ngFor="let page of graphPages"
+              [class.active]="currentPage === page"
+              (click)="navigate(page)"
+            >
+              {{ getPageLabel(page) }}
+            </button>
+          </div>
+        </div>
       </nav>
       <button type="button" class="secondary logout-button" (click)="logout()">Logout</button>
     </div>
@@ -834,6 +855,7 @@
       <table>
         <thead>
           <tr>
+            <th>Sum</th>
             <th>ID</th>
             <th>Name</th>
             <th>Day rate</th>
@@ -847,6 +869,15 @@
         </thead>
         <tbody>
           <tr *ngFor="let employee of employees">
+            <td data-label="Sum">
+              <input
+                type="checkbox"
+                class="table-checkbox"
+                [name]="'employeeSum' + employee.id"
+                [ngModel]="isEmployeeIncludedInSum(employee.id)"
+                (ngModelChange)="toggleEmployeeSum(employee.id, $event)"
+              />
+            </td>
             <td data-label="ID">#{{ employee.id }}</td>
             <td data-label="Name">{{ employee.name }}</td>
             <td data-label="Day rate">{{ formatMoney(employee.dayRate) }}</td>
@@ -888,9 +919,21 @@
             </td>
           </tr>
           <tr *ngIf="employees.length === 0">
-            <td colspan="9" class="empty-row">No employees yet</td>
+            <td colspan="10" class="empty-row">No employees yet</td>
           </tr>
         </tbody>
+        <tfoot *ngIf="employees.length > 0">
+          <tr>
+            <td colspan="3">Totals</td>
+            <td>{{ formatMoney(employeeDayRateTotal) }}</td>
+            <td>{{ employeeWorkedDaysTotal }}</td>
+            <td>{{ formatMoney(employeeTotalOwed) }}</td>
+            <td>{{ formatMoney(employeeTotalPaid) }}</td>
+            <td>{{ formatMoney(employeeTotalRemaining) }}</td>
+            <td>{{ employeePaymentCountTotal }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
 

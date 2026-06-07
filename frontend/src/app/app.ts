@@ -195,9 +195,11 @@ export class App implements OnInit {
   readonly chartHeight = 320;
   readonly chartPadding = 44;
 
-  pages: Page[] = ['suppliers', 'invoices', 'payments', 'graph', 'warehouse', 'warehouseGraph', 'employees', 'incomeOverview', 'incomeGraph'];
+  pages: Page[] = ['suppliers', 'invoices', 'payments', 'warehouse', 'employees', 'incomeOverview'];
+  graphPages: Page[] = ['graph', 'warehouseGraph', 'incomeGraph'];
   currentPage: Page = 'suppliers';
   mobileMenuOpen = false;
+  graphMenuOpen = false;
   isAuthenticated = false;
   isCheckingAuth = true;
   loginPassword = '';
@@ -210,6 +212,7 @@ export class App implements OnInit {
   employeePayments: EmployeePayment[] = [];
   dailyIncome: DailyIncome[] = [];
   expenses: Expense[] = [];
+  employeeSumIncludedIds = new Set<number>();
   newSupplier: SupplierForm = this.createEmptySupplierForm();
   supplierForm: SupplierForm = this.createEmptySupplierForm();
   invoiceForm: InvoiceForm = this.createEmptyInvoiceForm();
@@ -249,11 +252,20 @@ export class App implements OnInit {
   navigate(page: Page): void {
     this.currentPage = page;
     this.errorMessage = '';
+    this.graphMenuOpen = false;
     this.closeMobileMenu();
   }
 
   toggleMobileMenu(): void {
     this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  toggleGraphMenu(): void {
+    this.graphMenuOpen = !this.graphMenuOpen;
+  }
+
+  get isGraphPageActive(): boolean {
+    return this.graphPages.includes(this.currentPage);
   }
 
   closeMobileMenu(): void {
@@ -447,6 +459,15 @@ export class App implements OnInit {
     };
   }
 
+  toggleEmployeeSum(employeeId: number, checked: boolean): void {
+    if (checked) {
+      this.employeeSumIncludedIds.add(employeeId);
+      return;
+    }
+
+    this.employeeSumIncludedIds.delete(employeeId);
+  }
+
   closeEditEmployee(): void {
     this.editingEmployee = null;
   }
@@ -553,15 +574,35 @@ export class App implements OnInit {
   }
 
   get employeeTotalOwed(): number {
-    return this.employees.reduce((total, employee) => total + employee.totalAmount, 0);
+    return this.employeesForSum.reduce((total, employee) => total + employee.totalAmount, 0);
   }
 
   get employeeTotalPaid(): number {
-    return this.employees.reduce((total, employee) => total + employee.paidAmount, 0);
+    return this.employeesForSum.reduce((total, employee) => total + employee.paidAmount, 0);
   }
 
   get employeeTotalRemaining(): number {
-    return this.employees.reduce((total, employee) => total + employee.remainingAmount, 0);
+    return this.employeesForSum.reduce((total, employee) => total + employee.remainingAmount, 0);
+  }
+
+  get employeeDayRateTotal(): number {
+    return this.employeesForSum.reduce((total, employee) => total + employee.dayRate, 0);
+  }
+
+  get employeeWorkedDaysTotal(): number {
+    return this.employeesForSum.reduce((total, employee) => total + employee.workedDays, 0);
+  }
+
+  get employeePaymentCountTotal(): number {
+    return this.employeesForSum.reduce((total, employee) => total + employee.paymentIds.length, 0);
+  }
+
+  isEmployeeIncludedInSum(employeeId: number): boolean {
+    return this.employeeSumIncludedIds.has(employeeId);
+  }
+
+  get employeesForSum(): Employee[] {
+    return this.employees.filter((employee) => this.employeeSumIncludedIds.has(employee.id));
   }
 
   get filteredEmployeePayments(): EmployeePayment[] {
@@ -892,6 +933,7 @@ export class App implements OnInit {
         this.employeePayments = employeePayments;
         this.dailyIncome = dailyIncome;
         this.expenses = expenses;
+        this.syncEmployeeSumIncludedIds();
         this.setDefaultSupplierSelections();
         this.isLoading = false;
         this.changeDetector.detectChanges();
@@ -1124,8 +1166,25 @@ export class App implements OnInit {
     this.expenses = [];
     this.warehouseGraphItemId = 0;
     this.employeePaymentForm = this.createEmptyEmployeePaymentForm();
+    this.employeeSumIncludedIds.clear();
     this.errorMessage = '';
     this.changeDetector.detectChanges();
+  }
+
+  private syncEmployeeSumIncludedIds(): void {
+    const employeeIds = new Set(this.employees.map((employee) => employee.id));
+
+    this.employeeSumIncludedIds.forEach((employeeId) => {
+      if (!employeeIds.has(employeeId)) {
+        this.employeeSumIncludedIds.delete(employeeId);
+      }
+    });
+
+    this.employees.forEach((employee) => {
+      if (!this.employeeSumIncludedIds.has(employee.id)) {
+        this.employeeSumIncludedIds.add(employee.id);
+      }
+    });
   }
 
   private handleError(message: string): void {
